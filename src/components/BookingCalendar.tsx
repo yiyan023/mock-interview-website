@@ -96,9 +96,9 @@ export function BookingCalendar() {
     setSlotsError(null)
 
     fetchSlotsForCurrentMonth(new Date(cursor.y, cursor.m, 1))
-      .then((dates: Date[]) => {
+      .then((dates: Set<Date>) => {
         if (cancelled) return
-        setMonthSlots(dates)
+        setMonthSlots(Array.from(dates))
       })
       .catch((err: unknown) => {
         if (cancelled) return

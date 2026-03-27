@@ -29,7 +29,7 @@ function rowToSlotDate(row: SlotRow): Date | null {
   return parsePostgresDateOnly(row.date)
 }
 
-export async function fetchSlotsForCurrentMonth(date: Date): Promise<Date[]> {
+export async function fetchSlotsForCurrentMonth(date: Date): Promise<Set<Date>> {
   const year = date.getFullYear()
   const month = date.getMonth() + 1
 
@@ -48,5 +48,6 @@ export async function fetchSlotsForCurrentMonth(date: Date): Promise<Date[]> {
     if (d) dates.push(d)
   }
 
-  return dates
+  const dateSet = new Set(dates)
+  return dateSet
 }
