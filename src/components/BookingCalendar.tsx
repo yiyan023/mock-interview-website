@@ -78,9 +78,9 @@ export function BookingCalendar() {
     }
   }, [tz])
 
-  const [cursor, setCursor] = useState(() => {
+  const [viewMonth, setViewMonth] = useState(() => {
     const t = new Date()
-    return { y: t.getFullYear(), m: t.getMonth() }
+    return new Date(t.getFullYear(), t.getMonth(), 1)
   })
   const [selectedKey, setSelectedKey] = useState<string | null>(null)
   const [availableDayKeys, setAvailableDayKeys] = useState<Set<string>>(
@@ -90,10 +90,19 @@ export function BookingCalendar() {
   const [slotsError, setSlotsError] = useState<string | null>(null)
 
   const today = new Date()
-  const todayStart = createDate(today)
+  const todayDate = createDate(today)
+  const viewYear = viewMonth.getFullYear()
+  const viewMonthIndex = viewMonth.getMonth()
+
   const cells = useMemo(
-    () => buildMonthCells(cursor.y, cursor.m, availableDayKeys, todayStart),
-    [cursor.y, cursor.m, availableDayKeys, todayStart.getTime()],
+    () =>
+      buildMonthCells(
+        viewYear,
+        viewMonthIndex,
+        availableDayKeys,
+        todayDate,
+      ),
+    [viewYear, viewMonthIndex, availableDayKeys, todayDate.getTime()],
   )
 
   const selectedDate = useMemo(() => {
@@ -106,12 +115,11 @@ export function BookingCalendar() {
     let cancelled = false;
     setSlotsLoading(true)
     setSlotsError(null)
-    setAvailableDayKeys(new Set([]))
+    setAvailableDayKeys(new Set())
 
-    fetchSlotsForCurrentMonth(new Date(cursor.y, cursor.m, 1))
+    fetchSlotsForCurrentMonth(viewMonth)
       .then((keys: Set<string>) => {
         if (cancelled) return
-        console.log('processed keys', keys)
         setAvailableDayKeys(keys)
       })
       .catch((err: unknown) => {
@@ -132,36 +140,37 @@ export function BookingCalendar() {
       cancelled = true
       setSlotsLoading(false)
     }
-    /* eslint-enable react-hooks/set-state-in-effect */
     return cleanup
-  }, [cursor.y, cursor.m])
+  }, [viewMonth])
 
+  // update with supabase integration
   const slotsForSelection = useMemo(() => {
     if (!selectedKey) return []
     if (!availableDayKeys.has(selectedKey)) return []
     const [year, month, day] = selectedKey.split('-').map(Number)
     const slot = new Date(year, month - 1, day, 9, 0, 0, 0)
-    if (createDate(slot) < todayStart) return []
+    if (createDate(slot) < todayDate) return []
     return [slot]
-  }, [availableDayKeys, selectedKey, todayStart.getTime()])
+  }, [availableDayKeys, selectedKey, today.getTime()])
 
   const canPrevMonth = useMemo(() => {
-    const firstOfView = new Date(cursor.y, cursor.m, 1)
-    return firstOfView > new Date(todayStart.getFullYear(), todayStart.getMonth(), 1)
-  }, [cursor.y, cursor.m, todayStart])
+    return viewMonth > today
+  }, [viewMonth, today])
 
   function goPrevMonth() {
-    setCursor(({ y, m }) => {
-      if (m === 0) return { y: y - 1, m: 11 }
-      return { y, m: m - 1 }
+    setViewMonth((prev) => {
+      const year = prev.getFullYear()
+      const month = prev.getMonth()
+      return new Date(year, month - 1, 1)
     })
     setSelectedKey(null)
   }
 
   function goNextMonth() {
-    setCursor(({ y, m }) => {
-      if (m === 11) return { y: y + 1, m: 0 }
-      return { y, m: m + 1 }
+    setViewMonth((prev) => {
+      const year = prev.getFullYear()
+      const month = prev.getMonth()
+      return new Date(year, month + 1, 1)
     })
     setSelectedKey(null)
   }
@@ -189,7 +198,7 @@ export function BookingCalendar() {
             ‹
           </button>
           <h2 className="booking-calendar__month-title">
-            {formatMonthYear(cursor.y, cursor.m)}
+            {formatMonthYear(viewYear, viewMonthIndex)}
           </h2>
           <button
             type="button"
@@ -217,7 +226,7 @@ export function BookingCalendar() {
             const { date, dayNum, available } = cell
             const key = dateKey(date)
             const isSelected = selectedKey === key
-            const isToday = key === dateKey(todayStart)
+            const isToday = key === dateKey(todayDate)
 
             return (
               <button
