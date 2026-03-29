@@ -32,16 +32,27 @@ function formatMonthYear(year: number, monthIndex: number): string {
 
 type Cell =
   | { kind: 'empty' }
-  | { kind: 'day'; date: Date; dayNum: number }
+  | { kind: 'day'; date: Date; dayNum: number; available: boolean }
 
-function buildMonthCells(year: number, monthIndex: number): Cell[] {
-  const first = new Date(year, monthIndex, 1)
-  const pad = first.getDay()
+function buildMonthCells(
+  year: number,
+  monthIndex: number,
+  availableKeys: Set<string>,
+  todayStart: Date,
+): Cell[] {
+  const firstDate = new Date(year, monthIndex, 1)
+  const emptyDays = firstDate.getDay()
   const lastDay = new Date(year, monthIndex + 1, 0).getDate()
   const cells: Cell[] = []
-  for (let i = 0; i < pad; i++) cells.push({ kind: 'empty' })
+
+  for (let i = 0; i < emptyDays; i++) cells.push({ kind: 'empty' })
+
   for (let d = 1; d <= lastDay; d++) {
-    cells.push({ kind: 'day', date: new Date(year, monthIndex, d), dayNum: d })
+    const date = new Date(year, monthIndex, d)
+    const key = dateKey(date)
+
+    const available = availableKeys.has(key) && createDate(date) >= todayStart
+    cells.push({ kind: 'day', date, dayNum: d, available })
   }
   return cells
 }
@@ -72,15 +83,17 @@ export function BookingCalendar() {
     return { y: t.getFullYear(), m: t.getMonth() }
   })
   const [selectedKey, setSelectedKey] = useState<string | null>(null)
-  const [monthSlots, setMonthSlots] = useState<Date[]>([])
+  const [availableDayKeys, setAvailableDayKeys] = useState<Set<string>>(
+    () => new Set(),
+  )
   const [slotsLoading, setSlotsLoading] = useState(false)
   const [slotsError, setSlotsError] = useState<string | null>(null)
 
   const today = new Date()
   const todayStart = createDate(today)
   const cells = useMemo(
-    () => buildMonthCells(cursor.y, cursor.m),
-    [cursor.y, cursor.m],
+    () => buildMonthCells(cursor.y, cursor.m, availableDayKeys, todayStart),
+    [cursor.y, cursor.m, availableDayKeys, todayStart.getTime()],
   )
 
   const selectedDate = useMemo(() => {
@@ -90,15 +103,16 @@ export function BookingCalendar() {
   }, [selectedKey])
 
   useEffect(() => {
-    let cancelled = false
-    /* eslint-disable react-hooks/set-state-in-effect */
+    let cancelled = false;
     setSlotsLoading(true)
     setSlotsError(null)
+    setAvailableDayKeys(new Set([]))
 
     fetchSlotsForCurrentMonth(new Date(cursor.y, cursor.m, 1))
-      .then((dates: Set<Date>) => {
+      .then((keys: Set<string>) => {
         if (cancelled) return
-        setMonthSlots(Array.from(dates))
+        console.log('processed keys', keys)
+        setAvailableDayKeys(keys)
       })
       .catch((err: unknown) => {
         if (cancelled) return
@@ -107,7 +121,7 @@ export function BookingCalendar() {
         }
         const message =
           err instanceof Error ? err.message : 'Failed to load availability.'
-        setMonthSlots([])
+        setAvailableDayKeys(new Set())
         setSlotsError(message)
       })
       .finally(() => {
@@ -124,10 +138,12 @@ export function BookingCalendar() {
 
   const slotsForSelection = useMemo(() => {
     if (!selectedKey) return []
-    return monthSlots
-      .filter((s) => dateKey(s) === selectedKey)
-      .filter((s) => createDate(s) >= todayStart)
-  }, [monthSlots, selectedKey, todayStart.getTime()])
+    if (!availableDayKeys.has(selectedKey)) return []
+    const [year, month, day] = selectedKey.split('-').map(Number)
+    const slot = new Date(year, month - 1, day, 9, 0, 0, 0)
+    if (createDate(slot) < todayStart) return []
+    return [slot]
+  }, [availableDayKeys, selectedKey, todayStart.getTime()])
 
   const canPrevMonth = useMemo(() => {
     const firstOfView = new Date(cursor.y, cursor.m, 1)
@@ -198,7 +214,7 @@ export function BookingCalendar() {
             if (cell.kind === 'empty') {
               return <span key={`e-${i}`} className="booking-calendar__cell" />
             }
-            const { date, dayNum } = cell
+            const { date, dayNum, available } = cell
             const key = dateKey(date)
             const isSelected = selectedKey === key
             const isToday = key === dateKey(todayStart)
@@ -211,11 +227,14 @@ export function BookingCalendar() {
                   'booking-calendar__day',
                   isSelected && 'booking-calendar__day--selected',
                   isToday && 'booking-calendar__day--today',
+                  !available && 'booking-calendar__day--muted',
                 ]
                   .filter(Boolean)
                   .join(' ')}
+                disabled={!available}
                 onClick={() => setSelectedKey(key)}
                 aria-pressed={isSelected}
+                aria-disabled={!available}
                 aria-label={`${dayNum}, ${formatMonthYear(date.getFullYear(), date.getMonth())}`}
               >
                 {dayNum}
