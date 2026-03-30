@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import { fetchSlotsForCurrentMonth } from '../lib/bookingSlots'
+import { fetchSlotsForCurrentMonth } from '../lib/fetchSlots'
+import { fetchAvailableTimesForDate } from '../lib/fetchTimes'
 import './BookingCalendar.css'
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const
@@ -88,6 +89,8 @@ export function BookingCalendar() {
   )
   const [slotsLoading, setSlotsLoading] = useState(false)
   const [slotsError, setSlotsError] = useState<string | null>(null)
+  const [showSlots, setShowSlots] = useState(false)
+  const [avaliableSlots, setAvaliableSlots] = useState<Date[]>([])
 
   const today = new Date()
   const todayDate = createDate(today)
@@ -143,15 +146,16 @@ export function BookingCalendar() {
     return cleanup
   }, [viewMonth])
 
-  // update with supabase integration
-  const slotsForSelection = useMemo(() => {
-    if (!selectedKey) return []
-    if (!availableDayKeys.has(selectedKey)) return []
-    const [year, month, day] = selectedKey.split('-').map(Number)
-    const slot = new Date(year, month - 1, day, 9, 0, 0, 0)
-    if (createDate(slot) < todayDate) return []
-    return [slot]
-  }, [availableDayKeys, selectedKey, today.getTime()])
+  async function getSlotsForSelection(key: string) {
+    if (!key) return []
+    if (!availableDayKeys.has(key)) return []
+
+    const slotDate = new Date(key)
+    const slots = await fetchAvailableTimesForDate(slotDate)
+
+    setShowSlots(true)
+    setAvaliableSlots(slots)
+  }
 
   const canPrevMonth = useMemo(() => {
     return viewMonth > today
@@ -241,7 +245,11 @@ export function BookingCalendar() {
                   .filter(Boolean)
                   .join(' ')}
                 disabled={!available}
-                onClick={() => setSelectedKey(key)}
+                onClick={() => {
+                    console.log('key', key)
+                  setSelectedKey(key)
+                  getSlotsForSelection(key)
+                }}
                 aria-pressed={isSelected}
                 aria-disabled={!available}
                 aria-label={`${dayNum}, ${formatMonthYear(date.getFullYear(), date.getMonth())}`}
@@ -275,14 +283,9 @@ export function BookingCalendar() {
                 {slotsError}
               </p>
             )}
-            {!slotsLoading && !slotsError && slotsForSelection.length === 0 ? (
-              <p className="booking-calendar__hint">
-                No times left on this day. Try another date.
-              </p>
-            ) : null}
-            {!slotsLoading && !slotsError && slotsForSelection.length > 0 ? (
+            {!slotsLoading && !slotsError && showSlots ? (
               <ul className="booking-calendar__slots" role="list">
-                {slotsForSelection.map((slot) => (
+                {avaliableSlots?.map((slot) => (
                   <li key={slot.getTime()}>
                     <button
                       type="button"
