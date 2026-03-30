@@ -71,7 +71,6 @@ export async function fetchAvailableTimesForDate(selectedDate: Date): Promise<Da
   }
 
   instants.sort((a, b) => a.getTime() - b.getTime())
-  console.log('instants', instants)
   return instants
 }
 

@@ -7,6 +7,7 @@ import {
   type IntakeFormState,
 } from '../lib/fetchForm'
 import { fetchSlotsForCurrentMonth } from '../lib/fetchSlots'
+import { startCheckout } from '../lib/stripeCheckout'
 import { fetchAvailableTimesForDate } from '../lib/fetchTimes'
 import './BookingCalendar.css'
 
@@ -101,6 +102,8 @@ export function BookingCalendar() {
   const [isIntakeFormOpen, setIsIntakeFormOpen] = useState(false)
   const [selectedTimeSlot, setSelectedTimeSlot] = useState<Date | null>(null)
   const [intakeForm, setIntakeForm] = useState<IntakeFormState>(INITIAL_INTAKE_FORM)
+  const [isCheckoutLoading, setIsCheckoutLoading] = useState(false)
+  const [checkoutError, setCheckoutError] = useState<string | null>(null)
 
   const today = new Date()
   const todayDate = createDate(today)
@@ -175,6 +178,8 @@ export function BookingCalendar() {
   function closeIntakeForm() {
     setIsIntakeFormOpen(false)
     setSelectedTimeSlot(null)
+    setCheckoutError(null)
+    setIsCheckoutLoading(false)
   }
 
   function updateIntakeField<K extends keyof IntakeFormState>(
@@ -184,16 +189,28 @@ export function BookingCalendar() {
     setIntakeForm((prev) => ({ ...prev, [field]: value }))
   }
 
-  function submitIntakeForm(e: React.FormEvent<HTMLFormElement>) {
+  async function submitIntakeForm(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
-    if (import.meta.env.DEV) {
-      console.log('Intake submission payload', {
-        selectedTimeSlot,
-        intakeForm,
+    if (!selectedTimeSlot) return
+
+    setCheckoutError(null)
+    setIsCheckoutLoading(true)
+
+    try {
+      await startCheckout({
+        selectedTimeIso: selectedTimeSlot.toISOString(),
+        timezone: tz,
+        form: intakeForm,
       })
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error
+          ? err.message
+          : 'Unable to start checkout. Please try again.'
+      setCheckoutError(message)
+      setIsCheckoutLoading(false)
+      return
     }
-    // Stripe/payment flow placeholder: wire after payment integration.
-    closeIntakeForm()
   }
 
   const canPrevMonth = useMemo(() => {
@@ -480,20 +497,30 @@ export function BookingCalendar() {
                 />
               </label>
 
-              <p className="booking-calendar__hint">
-                Stripe integration placeholder: payment flow will be added next.
-              </p>
+              {/* <p className="booking-calendar__hint">
+                You will be redirected to secure Stripe Checkout after continuing.
+              </p> */}
+              {checkoutError && (
+                <p className="booking-calendar__hint" role="alert">
+                  {checkoutError}
+                </p>
+              )}
 
               <div className="booking-calendar__form-actions">
                 <button
                   type="button"
                   className="booking-calendar__slot-btn"
                   onClick={closeIntakeForm}
+                  disabled={isCheckoutLoading}
                 >
                   Cancel
                 </button>
-                <button type="submit" className="booking-calendar__slot-btn">
-                  Continue
+                <button
+                  type="submit"
+                  className="booking-calendar__slot-btn"
+                  disabled={isCheckoutLoading}
+                >
+                  {isCheckoutLoading ? 'Starting checkout...' : 'Continue'}
                 </button>
               </div>
             </form>
