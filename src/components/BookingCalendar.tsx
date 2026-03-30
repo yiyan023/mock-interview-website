@@ -1,4 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
+import {
+  EXPERIENCE_LEVEL_OPTIONS,
+  INITIAL_INTAKE_FORM,
+  INTERVIEW_SOON_OPTIONS,
+  QUESTION_TYPE_OPTIONS,
+  type IntakeFormState,
+} from '../lib/fetchForm'
 import { fetchSlotsForCurrentMonth } from '../lib/fetchSlots'
 import { fetchAvailableTimesForDate } from '../lib/fetchTimes'
 import './BookingCalendar.css'
@@ -90,7 +97,10 @@ export function BookingCalendar() {
   const [slotsLoading, setSlotsLoading] = useState(false)
   const [slotsError, setSlotsError] = useState<string | null>(null)
   const [showSlots, setShowSlots] = useState(false)
-  const [avaliableSlots, setAvaliableSlots] = useState<Date[]>([])
+  const [availableSlots, setAvailableSlots] = useState<Date[]>([])
+  const [isIntakeFormOpen, setIsIntakeFormOpen] = useState(false)
+  const [selectedTimeSlot, setSelectedTimeSlot] = useState<Date | null>(null)
+  const [intakeForm, setIntakeForm] = useState<IntakeFormState>(INITIAL_INTAKE_FORM)
 
   const today = new Date()
   const todayDate = createDate(today)
@@ -115,7 +125,7 @@ export function BookingCalendar() {
   }, [selectedKey])
 
   useEffect(() => {
-    let cancelled = false;
+    let cancelled = false
     setSlotsLoading(true)
     setSlotsError(null)
     setAvailableDayKeys(new Set())
@@ -154,7 +164,36 @@ export function BookingCalendar() {
     const slots = await fetchAvailableTimesForDate(slotDate)
 
     setShowSlots(true)
-    setAvaliableSlots(slots)
+    setAvailableSlots(slots)
+  }
+
+  function openIntakeForm(slot: Date) {
+    setSelectedTimeSlot(slot)
+    setIsIntakeFormOpen(true)
+  }
+
+  function closeIntakeForm() {
+    setIsIntakeFormOpen(false)
+    setSelectedTimeSlot(null)
+  }
+
+  function updateIntakeField<K extends keyof IntakeFormState>(
+    field: K,
+    value: IntakeFormState[K],
+  ) {
+    setIntakeForm((prev) => ({ ...prev, [field]: value }))
+  }
+
+  function submitIntakeForm(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    if (import.meta.env.DEV) {
+      console.log('Intake submission payload', {
+        selectedTimeSlot,
+        intakeForm,
+      })
+    }
+    // Stripe/payment flow placeholder: wire after payment integration.
+    closeIntakeForm()
   }
 
   const canPrevMonth = useMemo(() => {
@@ -246,7 +285,6 @@ export function BookingCalendar() {
                   .join(' ')}
                 disabled={!available}
                 onClick={() => {
-                    console.log('key', key)
                   setSelectedKey(key)
                   getSlotsForSelection(key)
                 }}
@@ -261,6 +299,7 @@ export function BookingCalendar() {
         </div>
       </div>
 
+      {showSlots && (
       <div className="booking-calendar__panel booking-calendar__panel--times">
         <p className="booking-calendar__tz-note">
           Times shown in <strong>{tzLabel || tz}</strong>
@@ -283,16 +322,14 @@ export function BookingCalendar() {
                 {slotsError}
               </p>
             )}
-            {!slotsLoading && !slotsError && showSlots ? (
+            {!slotsLoading && !slotsError ? (
               <ul className="booking-calendar__slots" role="list">
-                {avaliableSlots?.map((slot) => (
+                {availableSlots?.map((slot) => (
                   <li key={slot.getTime()}>
                     <button
                       type="button"
                       className="booking-calendar__slot-btn"
-                      onClick={() => {
-                        /* hook for booking flow */
-                      }}
+                      onClick={() => openIntakeForm(slot)}
                     >
                       {formatSlotTime(slot, tz)}
                     </button>
@@ -300,9 +337,169 @@ export function BookingCalendar() {
                 ))}
               </ul>
             ) : null}
-          </>
-        )}
-      </div>
+            </>
+          )}
+        </div>
+      )}
+      {isIntakeFormOpen && selectedTimeSlot && (
+        <div className="booking-calendar__modal-overlay" role="presentation">
+          <div
+            className="booking-calendar__modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="intake-form-title"
+          >
+            <div className="booking-calendar__modal-header">
+              <h3 id="intake-form-title">Book Your Session</h3>
+              <button
+                type="button"
+                className="booking-calendar__modal-close"
+                onClick={closeIntakeForm}
+                aria-label="Close form"
+              >
+                ×
+              </button>
+            </div>
+            <p className="booking-calendar__hint">
+              Selected time: <strong>{formatSlotTime(selectedTimeSlot, tz)}</strong> (
+              {tzLabel || tz})
+            </p>
+
+            <form className="booking-calendar__form" onSubmit={submitIntakeForm}>
+              <label>
+                Email
+                <input
+                  type="email"
+                  required
+                  value={intakeForm.email}
+                  onChange={(e) => updateIntakeField('email', e.target.value)}
+                />
+              </label>
+
+              <div className="booking-calendar__form-row">
+                <label>
+                  First name
+                  <input
+                    type="text"
+                    required
+                    value={intakeForm.firstName}
+                    onChange={(e) => updateIntakeField('firstName', e.target.value)}
+                  />
+                </label>
+                <label>
+                  Last name
+                  <input
+                    type="text"
+                    required
+                    value={intakeForm.lastName}
+                    onChange={(e) => updateIntakeField('lastName', e.target.value)}
+                  />
+                </label>
+              </div>
+
+              <fieldset>
+                <legend>Do you have an interview coming up?</legend>
+                {INTERVIEW_SOON_OPTIONS.map((option) => (
+                  <label key={option.value}>
+                    <input
+                      type="radio"
+                      name="interview-soon"
+                      checked={intakeForm.hasInterviewSoon === option.value}
+                      onChange={() =>
+                        updateIntakeField('hasInterviewSoon', option.value)
+                      }
+                    />
+                    {option.label}
+                  </label>
+                ))}
+              </fieldset>
+
+              {intakeForm.hasInterviewSoon === 'yes' && (
+                <label>
+                  If so, what company?
+                  <input
+                    type="text"
+                    value={intakeForm.company}
+                    onChange={(e) => updateIntakeField('company', e.target.value)}
+                  />
+                </label>
+              )}
+
+              <fieldset>
+                <legend>
+                  What level of experience do you have with solving Leetcode problems and
+                  conducting technical interviews?
+                </legend>
+                {EXPERIENCE_LEVEL_OPTIONS.map((option, idx) => (
+                  <label key={option.value}>
+                    <input
+                      type="radio"
+                      name="experience-level"
+                      required={idx === 0}
+                      checked={intakeForm.experienceLevel === option.value}
+                      onChange={() =>
+                        updateIntakeField('experienceLevel', option.value)
+                      }
+                    />
+                    {option.label}
+                  </label>
+                ))}
+              </fieldset>
+
+              <fieldset>
+                <legend>What type of question would you like to be asked?</legend>
+                {QUESTION_TYPE_OPTIONS.map((option, idx) => (
+                  <label key={option.value}>
+                    <input
+                      type="radio"
+                      name="question-type"
+                      required={idx === 0}
+                      checked={intakeForm.questionType === option.value}
+                      onChange={() => updateIntakeField('questionType', option.value)}
+                    />
+                    {option.label}
+                  </label>
+                ))}
+              </fieldset>
+
+              <label>
+                Is there anything else I should know before our upcoming session?
+                <textarea
+                  rows={4}
+                  value={intakeForm.notes}
+                  onChange={(e) => updateIntakeField('notes', e.target.value)}
+                />
+              </label>
+
+              <label>
+                Who did you hear about this from?
+                <input
+                  type="text"
+                  value={intakeForm.referral}
+                  onChange={(e) => updateIntakeField('referral', e.target.value)}
+                />
+              </label>
+
+              <p className="booking-calendar__hint">
+                Stripe integration placeholder: payment flow will be added next.
+              </p>
+
+              <div className="booking-calendar__form-actions">
+                <button
+                  type="button"
+                  className="booking-calendar__slot-btn"
+                  onClick={closeIntakeForm}
+                >
+                  Cancel
+                </button>
+                <button type="submit" className="booking-calendar__slot-btn">
+                  Continue
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
