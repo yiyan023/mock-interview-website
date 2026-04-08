@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { EmbeddedCheckout, EmbeddedCheckoutProvider } from '@stripe/react-stripe-js'
 import {
   EXPERIENCE_LEVEL_OPTIONS,
   INITIAL_INTAKE_FORM,
@@ -7,7 +8,10 @@ import {
   type IntakeFormState,
 } from '../lib/fetchForm'
 import { fetchSlotsForCurrentMonth } from '../lib/fetchSlots'
-import { startCheckout } from '../lib/stripeCheckout'
+import {
+  createEmbeddedCheckoutSession,
+  stripePromise,
+} from '../lib/stripeCheckout'
 import { fetchAvailableTimesForDate } from '../lib/fetchTimes'
 import './BookingCalendar.css'
 
@@ -104,6 +108,10 @@ export function BookingCalendar() {
   const [intakeForm, setIntakeForm] = useState<IntakeFormState>(INITIAL_INTAKE_FORM)
   const [isCheckoutLoading, setIsCheckoutLoading] = useState(false)
   const [checkoutError, setCheckoutError] = useState<string | null>(null)
+  const [embeddedClientSecret, setEmbeddedClientSecret] = useState<string | null>(null)
+  const [scheduleSuccessMessage, setScheduleSuccessMessage] = useState<string | null>(
+    null,
+  )
 
   const today = new Date()
   const todayDate = createDate(today)
@@ -159,6 +167,32 @@ export function BookingCalendar() {
     return cleanup
   }, [viewMonth])
 
+  useEffect(() => {
+    const u = new URL(window.location.href)
+    if (u.searchParams.get('stripe_checkout') !== 'return') return
+
+    setScheduleSuccessMessage('Your payment went through. Thanks!')
+    setIsIntakeFormOpen(false)
+    setSelectedTimeSlot(null)
+    setEmbeddedClientSecret(null)
+    setCheckoutError(null)
+    setIsCheckoutLoading(false)
+
+    u.searchParams.delete('stripe_checkout')
+    u.searchParams.delete('session_id')
+    const next = u.pathname + (u.search ? u.search : '') + u.hash
+    window.history.replaceState({}, '', next)
+  }, [])
+
+  const onEmbeddedCheckoutComplete = useCallback(() => {
+    setEmbeddedClientSecret(null)
+    setScheduleSuccessMessage('Your payment went through. Thanks!')
+    setIsIntakeFormOpen(false)
+    setSelectedTimeSlot(null)
+    setCheckoutError(null)
+    setIsCheckoutLoading(false)
+  }, [])
+
   async function getSlotsForSelection(key: string) {
     if (!key) return []
     if (!availableDayKeys.has(key)) return []
@@ -173,6 +207,8 @@ export function BookingCalendar() {
   function openIntakeForm(slot: Date) {
     setSelectedTimeSlot(slot)
     setIsIntakeFormOpen(true)
+    setScheduleSuccessMessage(null)
+    setEmbeddedClientSecret(null)
   }
 
   function closeIntakeForm() {
@@ -180,6 +216,7 @@ export function BookingCalendar() {
     setSelectedTimeSlot(null)
     setCheckoutError(null)
     setIsCheckoutLoading(false)
+    setEmbeddedClientSecret(null)
   }
 
   function updateIntakeField<K extends keyof IntakeFormState>(
@@ -197,11 +234,13 @@ export function BookingCalendar() {
     setIsCheckoutLoading(true)
 
     try {
-      await startCheckout({
+      const clientSecret = await createEmbeddedCheckoutSession({
         selectedTimeIso: selectedTimeSlot.toISOString(),
         timezone: tz,
         form: intakeForm,
       })
+      setEmbeddedClientSecret(clientSecret)
+      setIsCheckoutLoading(false)
     } catch (err: unknown) {
       const message =
         err instanceof Error
@@ -246,6 +285,11 @@ export function BookingCalendar() {
 
   return (
     <div className="booking-calendar" role="region" aria-label="Schedule">
+      {scheduleSuccessMessage && (
+        <div className="booking-calendar__success-banner" role="status">
+          {scheduleSuccessMessage}
+        </div>
+      )}
       <div className="booking-calendar__panel booking-calendar__panel--month">
         <div className="booking-calendar__nav">
           <button
@@ -367,7 +411,9 @@ export function BookingCalendar() {
             aria-labelledby="intake-form-title"
           >
             <div className="booking-calendar__modal-header">
-              <h3 id="intake-form-title">Book Your Session</h3>
+              <h3 id="intake-form-title">
+                {embeddedClientSecret ? 'Complete payment' : 'Book Your Session'}
+              </h3>
               <button
                 type="button"
                 className="booking-calendar__modal-close"
@@ -382,6 +428,34 @@ export function BookingCalendar() {
               {tzLabel || tz})
             </p>
 
+            {embeddedClientSecret ? (
+              <div className="booking-calendar__embedded-wrap">
+                <p className="booking-calendar__hint">
+                  Pay securely below. Your card details stay with Stripe.
+                </p>
+                <div className="booking-calendar__embedded-checkout">
+                  <EmbeddedCheckoutProvider
+                    key={embeddedClientSecret}
+                    stripe={stripePromise}
+                    options={{
+                      clientSecret: embeddedClientSecret,
+                      onComplete: onEmbeddedCheckoutComplete,
+                    }}
+                  >
+                    <EmbeddedCheckout />
+                  </EmbeddedCheckoutProvider>
+                </div>
+                <div className="booking-calendar__form-actions">
+                  <button
+                    type="button"
+                    className="booking-calendar__slot-btn"
+                    onClick={() => setEmbeddedClientSecret(null)}
+                  >
+                    Back to details
+                  </button>
+                </div>
+              </div>
+            ) : (
             <form className="booking-calendar__form" onSubmit={submitIntakeForm}>
               <label>
                 Email
@@ -497,9 +571,6 @@ export function BookingCalendar() {
                 />
               </label>
 
-              {/* <p className="booking-calendar__hint">
-                You will be redirected to secure Stripe Checkout after continuing.
-              </p> */}
               {checkoutError && (
                 <p className="booking-calendar__hint" role="alert">
                   {checkoutError}
@@ -520,10 +591,11 @@ export function BookingCalendar() {
                   className="booking-calendar__slot-btn"
                   disabled={isCheckoutLoading}
                 >
-                  {isCheckoutLoading ? 'Starting checkout...' : 'Continue'}
+                  {isCheckoutLoading ? 'Starting checkout...' : 'Proceed to Payment'}
                 </button>
               </div>
             </form>
+            )}
           </div>
         </div>
       )}

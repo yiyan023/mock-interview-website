@@ -9,6 +9,18 @@
   margin-inline: auto;
 }
 
+.booking-calendar__success-banner {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--accent-border);
+  background: var(--accent-bg);
+  color: var(--text-h);
+  font-size: 0.95rem;
+  line-height: 1.45;
+}
+
 @media (max-width: 720px) {
   .booking-calendar {
     grid-template-columns: 1fr;
@@ -256,6 +268,21 @@
   width: 2rem;
   height: 2rem;
   cursor: pointer;
+}
+
+.booking-calendar__embedded-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+}
+
+.booking-calendar__embedded-checkout {
+  min-height: min(520px, 55vh);
+  border-radius: 10px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--bg) 88%, var(--code-bg));
 }
 
 .booking-calendar__form {
