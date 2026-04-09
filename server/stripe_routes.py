@@ -40,3 +40,22 @@ def register_stripe_routes(app):
         except stripe.error.StripeError as e:
             print(f'[Stripe Error] create-checkout-session failed: {e.user_message} : {e.code} :{e.http_status}')
             return jsonify({'error': e.user_message, 'code': e.code}), e.http_status
+
+# @app.route('/webhook/stripe', methods=['POST'])
+# def stripe_webhook():
+#     payload = request.get_data()
+#     sig_header = request.headers.get('Stripe-Signature')
+
+#     try:
+#         event = stripe.Webhook.construct_event(
+#             payload, sig_header, os.getenv('STRIPE_WEBHOOK_SECRET')
+#         )
+#     except (ValueError, stripe.error.SignatureVerificationError):
+#         return '', 400
+
+#     if event['type'] == 'checkout.session.completed':
+#         session = event['data']['object']
+#         customer_email = session['customer_details']['email']
+#         # mark user as paid in your database
+
+#     return '', 200
