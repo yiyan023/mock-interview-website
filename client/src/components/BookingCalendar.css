@@ -345,4 +345,9 @@
 .booking-calendar__form-actions {
   display: flex;
   gap: 8px;
+  flex-wrap: wrap;
+}
+
+.booking-calendar__form-actions--embedded .booking-calendar__slot-btn {
+  flex: 1 1 min(160px, 100%);
 }

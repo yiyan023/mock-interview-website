@@ -1,17 +1,17 @@
-export type InterviewSoon = 'yes' | 'no'
-export type ExperienceLevel = 'beginner' | 'intermediate' | 'advanced'
+export type InterviewSoon = 'Yes' | 'No'
+export type ExperienceLevel = 'Beginner' | 'Intermediate' | 'Advanced'
 export type QuestionType =
-  | 'leetcode-easy'
-  | 'leetcode-medium-standard'
-  | 'leetcode-medium-hard'
-  | 'leetcode-hard'
-  | 'class-design-oop'
+  | 'Leetcode Easy'
+  | 'Leetcode Medium (Standard)'
+  | 'Leetcode Medium/Hard (More Difficult Medium)'
+  | 'Leetcode Hard'
+  | 'Class Design / OOP Question'
 
 export type IntakeFormState = {
   email: string
   firstName: string
   lastName: string
-  hasInterviewSoon: InterviewSoon
+  hasInterviewSoon: InterviewSoon | ''
   company: string
   experienceLevel: ExperienceLevel | ''
   questionType: QuestionType | ''
@@ -23,7 +23,7 @@ export const INITIAL_INTAKE_FORM: IntakeFormState = {
   email: '',
   firstName: '',
   lastName: '',
-  hasInterviewSoon: 'no',
+  hasInterviewSoon: '',
   company: '',
   experienceLevel: '',
   questionType: '',
@@ -32,26 +32,23 @@ export const INITIAL_INTAKE_FORM: IntakeFormState = {
 }
 
 export const INTERVIEW_SOON_OPTIONS: Array<{ value: InterviewSoon; label: string }> = [
-  { value: 'yes', label: 'Yes' },
-  { value: 'no', label: 'No' },
+  { value: 'Yes', label: 'Yes' },
+  { value: 'No', label: 'No' },
 ]
 
 export const EXPERIENCE_LEVEL_OPTIONS: Array<{
   value: ExperienceLevel
   label: string
 }> = [
-  { value: 'beginner', label: 'Beginner' },
-  { value: 'intermediate', label: 'Intermediate' },
-  { value: 'advanced', label: 'Advanced' },
+  { value: 'Beginner', label: 'Beginner' },
+  { value: 'Intermediate', label: 'Intermediate' },
+  { value: 'Advanced', label: 'Advanced' },
 ]
 
 export const QUESTION_TYPE_OPTIONS: Array<{ value: QuestionType; label: string }> = [
-  { value: 'leetcode-easy', label: 'Leetcode Easy' },
-  { value: 'leetcode-medium-standard', label: 'Leetcode Medium (Standard)' },
-  {
-    value: 'leetcode-medium-hard',
-    label: 'Leetcode Medium/Hard (More Difficult Medium)',
-  },
-  { value: 'leetcode-hard', label: 'Leetcode Hard' },
-  { value: 'class-design-oop', label: 'Class Design / OOP Question' },
+  { value: 'Leetcode Easy', label: 'Leetcode Easy' },
+  { value: 'Leetcode Medium (Standard)', label: 'Leetcode Medium (Standard)' },
+  { value: 'Leetcode Medium/Hard (More Difficult Medium)', label: 'Leetcode Medium/Hard (More Difficult Medium)' },
+  { value: 'Leetcode Hard', label: 'Leetcode Hard' },
+  { value: 'Class Design / OOP Question', label: 'Class Design / OOP Question' },
 ]

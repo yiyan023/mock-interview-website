@@ -12,6 +12,7 @@ import {
   createEmbeddedCheckoutSession,
   stripePromise,
 } from '../lib/stripeCheckout'
+import { sendBookingSummaryEmail } from '../lib/sendBookingEmail'
 import { fetchAvailableTimesForDate } from '../lib/fetchTimes'
 import './BookingCalendar.css'
 
@@ -112,6 +113,8 @@ export function BookingCalendar() {
   const [scheduleSuccessMessage, setScheduleSuccessMessage] = useState<string | null>(
     null,
   )
+  const [scheduleEmailInfo, setScheduleEmailInfo] = useState<string | null>(null)
+  const [scheduleEmailBusy, setScheduleEmailBusy] = useState(false)
 
   const today = new Date()
   const todayDate = createDate(today)
@@ -193,6 +196,31 @@ export function BookingCalendar() {
     setIsCheckoutLoading(false)
   }, [])
 
+  async function onScheduleEmailClick() {
+    if (!selectedTimeSlot) return
+    setScheduleEmailInfo(null)
+    const email = intakeForm.email.trim()
+    if (!email) {
+      setScheduleEmailInfo('Use “Back to details” and enter your email, then return here.')
+      return
+    }
+    setScheduleEmailBusy(true)
+    try {
+      await sendBookingSummaryEmail({
+        selectedTimeIso: selectedTimeSlot.toISOString(),
+        timezone: tz,
+        form: intakeForm,
+      })
+      setScheduleEmailInfo('Email sent — check your inbox.')
+    } catch (err: unknown) {
+      setScheduleEmailInfo(
+        err instanceof Error ? err.message : 'Could not send email. Try again.',
+      )
+    } finally {
+      setScheduleEmailBusy(false)
+    }
+  }
+
   async function getSlotsForSelection(key: string) {
     if (!key) return []
     if (!availableDayKeys.has(key)) return []
@@ -209,6 +237,7 @@ export function BookingCalendar() {
     setIsIntakeFormOpen(true)
     setScheduleSuccessMessage(null)
     setEmbeddedClientSecret(null)
+    setScheduleEmailInfo(null)
   }
 
   function closeIntakeForm() {
@@ -217,6 +246,7 @@ export function BookingCalendar() {
     setCheckoutError(null)
     setIsCheckoutLoading(false)
     setEmbeddedClientSecret(null)
+    setScheduleEmailInfo(null)
   }
 
   function updateIntakeField<K extends keyof IntakeFormState>(
@@ -445,15 +475,31 @@ export function BookingCalendar() {
                     <EmbeddedCheckout />
                   </EmbeddedCheckoutProvider>
                 </div>
-                <div className="booking-calendar__form-actions">
+                <div className="booking-calendar__form-actions booking-calendar__form-actions--embedded">
                   <button
                     type="button"
                     className="booking-calendar__slot-btn"
-                    onClick={() => setEmbeddedClientSecret(null)}
+                    onClick={() => {
+                      setEmbeddedClientSecret(null)
+                      setScheduleEmailInfo(null)
+                    }}
                   >
                     Back to details
                   </button>
+                  <button
+                    type="button"
+                    className="booking-calendar__slot-btn"
+                    onClick={onScheduleEmailClick}
+                    disabled={scheduleEmailBusy}
+                  >
+                    {scheduleEmailBusy ? 'Sending…' : 'Schedule'}
+                  </button>
                 </div>
+                {scheduleEmailInfo && (
+                  <p className="booking-calendar__hint" role="status">
+                    {scheduleEmailInfo}
+                  </p>
+                )}
               </div>
             ) : (
             <form className="booking-calendar__form" onSubmit={submitIntakeForm}>
@@ -505,7 +551,7 @@ export function BookingCalendar() {
                 ))}
               </fieldset>
 
-              {intakeForm.hasInterviewSoon === 'yes' && (
+              {intakeForm.hasInterviewSoon === 'Yes' && (
                 <label>
                   If so, what company?
                   <input
